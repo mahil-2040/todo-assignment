@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.todo_assignment"
+    namespace "com.example.todo_assignment"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

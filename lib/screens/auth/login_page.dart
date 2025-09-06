@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
 import 'package:todo_assignment/core/widgets/theme_toggle_button.dart';
+import 'package:app_links/app_links.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,10 +17,20 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  StreamSubscription? _sub;
+  late AppLinks _appLinks;
 
   @override
   void initState() {
     super.initState();
+    _appLinks = AppLinks();
+    _sub = _appLinks.uriLinkStream.listen((Uri uri) async {
+      if (uri.scheme == "todo") {
+        await Supabase.instance.client.auth.getSessionFromUrl(uri);
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    });
+
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 100),
       vsync: this,
@@ -29,6 +42,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _sub?.cancel();
     _fadeController.dispose();
     super.dispose();
   }
@@ -39,6 +53,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     try {
       await supabase.auth.signInWithOAuth(
         OAuthProvider.google,
+        redirectTo: 'todo://login-callback/',
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -49,6 +64,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Get screen dimensions for responsive design
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isTablet = screenWidth > 600;
+    final isSmallScreen = screenHeight < 700;
+    
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         final isDark = themeProvider.isDark(context);
@@ -79,26 +100,26 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 ),
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
                     child: Column(
                       children: [
                         // Top spacing
-                        const SizedBox(height: 30),
+                        SizedBox(height: screenHeight * 0.04),
                         // Theme Toggle Button
                         Row(
                           children: [
                             const Spacer(),
-                            ThemeToggleButton(size: 24),
+                            ThemeToggleButton(size: isTablet ? 28 : 24),
                           ],
                         ),
-                const SizedBox(height: 80),
+                SizedBox(height: isSmallScreen ? screenHeight * 0.08 : screenHeight * 0.10),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: isTablet ? 50 : 40,
+                      height: isTablet ? 50 : 40,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           begin: Alignment.topLeft,
@@ -109,26 +130,26 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             Color(0xFF0EA5E9),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(isTablet ? 10 : 8),
                         boxShadow: [
                           BoxShadow(
                             color: const Color(0xFF00B4D8).withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
+                            blurRadius: isTablet ? 10 : 8,
+                            offset: Offset(0, isTablet ? 5 : 4),
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.task_alt,
                         color: Colors.white,
-                        size: 24,
+                        size: isTablet ? 30 : 24,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: screenWidth * 0.03),
                     Text(
                       "TodoReminder",
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: isTablet ? 28 : 24,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : const Color(0xFF2D3748),
                       ),
@@ -136,7 +157,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                SizedBox(height: screenHeight * 0.025),
 
                 // Description text
                 Align(
@@ -144,7 +165,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   child: Text(
                     "Stay organized and never miss a deadline.\nManage your todos with smart reminders.",
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: isTablet ? 18 : 16,
                       color: isDark
                           ? const Color(0xFF94A3B8)
                           : const Color(0xFF64748B),
@@ -152,18 +173,18 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: screenHeight * 0.025),
 
                 // Illustration area with circular gradient
                 SizedBox(
-                  height: 300,
+                  height: isSmallScreen ? screenHeight * 0.30 : screenHeight * 0.35,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
                       // Main circular gradient background
                       Container(
-                        width: 280,
-                        height: 280,
+                        width: isTablet ? 350 : screenWidth * 0.7,
+                        height: isTablet ? 350 : screenWidth * 0.7,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           gradient: LinearGradient(
@@ -193,20 +214,20 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       Transform.rotate(
                         angle: 0.2, // Slight rotation (-5.7 degrees)
                         child: Container(
-                          width: 140,
-                          height: 140,
+                          width: isTablet ? 170 : screenWidth * 0.35,
+                          height: isTablet ? 170 : screenWidth * 0.35,
                           decoration: BoxDecoration(
                             color: isDark
                                       ? const Color(0xFF1E293B)
                                       : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(isTablet ? 25 : 20),
                             boxShadow: [
                               BoxShadow(
                                 color: isDark
                                     ? Colors.black.withOpacity(0.3)
                                     : Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
+                                blurRadius: isTablet ? 25 : 20,
+                                offset: Offset(0, isTablet ? 12 : 10),
                               ),
                             ],
                           ),
@@ -214,16 +235,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Container(
-                                width: 60,
-                                height: 60,
+                                width: isTablet ? 75 : screenWidth * 0.15,
+                                height: isTablet ? 75 : screenWidth * 0.15,
                                 decoration: BoxDecoration(
                                   
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(isTablet ? 15 : 12),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.task_alt,
-                                  color: Color.fromARGB(255, 115, 225, 172),
-                                  size: 70,
+                                  color: const Color.fromARGB(255, 115, 225, 172),
+                                  size: isTablet ? 85 : screenWidth * 0.175,
                                 ),
                               ),
                             ],
@@ -233,13 +254,13 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
                       // Floating orange dot - top right
                       Positioned(
-                        top: 58,
-                        right: 50,
+                        top: isTablet ? 70 : screenHeight * 0.08,
+                        right: isTablet ? 60 : screenWidth * 0.12,
                         child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
+                          width: isTablet ? 50 : screenWidth * 0.10,
+                          height: isTablet ? 50 : screenWidth * 0.10,
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
@@ -256,11 +277,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
                       // Floating purple dot - bottom left
                       Positioned(
-                        bottom: 68,
-                        left: 60,
+                        bottom: isTablet ? 80 : screenHeight * 0.09,
+                        left: isTablet ? 70 : screenWidth * 0.15,
                         child: Container(
-                          width: 30,
-                          height: 30,
+                          width: isTablet ? 40 : screenWidth * 0.075,
+                          height: isTablet ? 40 : screenWidth * 0.075,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               begin: Alignment.topLeft,
@@ -280,12 +301,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   ),
                 ),
 
-                const SizedBox(height: 60),
+                SizedBox(height: isSmallScreen ? screenHeight * 0.04 : screenHeight * 0.07),
                 // Google Sign In Button
                 Container(
                   width: double.infinity,
-                  height: 56,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  height: isTablet ? 64 : 56,
+                  margin: EdgeInsets.symmetric(horizontal: screenWidth * 0.04),
                   child: ElevatedButton(
                     onPressed: () => _signInWithGoogle(context),
                     style: ElevatedButton.styleFrom(
@@ -297,7 +318,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       elevation: 2,
                       shadowColor: Colors.black.withOpacity(0.1),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
                         side: BorderSide(
                           color: isDark
                               ? const Color(0xFF475569).withOpacity(0.5)
@@ -311,21 +332,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       children: [
                         Image.network(
                           'https://img.icons8.com/?size=100&id=V5cGWnc9R4xj&format=png&color=000000',
-                          width: 20,
-                          height: 20,
+                          width: isTablet ? 24 : 20,
+                          height: isTablet ? 24 : 20,
                           errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
+                            return Icon(
                               Icons.g_mobiledata,
-                              size: 20,
-                              color: Color(0xFF4285F4),
+                              size: isTablet ? 24 : 20,
+                              color: const Color(0xFF4285F4),
                             );
                           },
                         ),
-                        const SizedBox(width: 12),
-                        const Text(
+                        SizedBox(width: screenWidth * 0.03),
+                        Text(
                           "Continue with Google",
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: isTablet ? 18 : 16,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -334,21 +355,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   ),
                 ),
 
-                const SizedBox(height: 24),
+                SizedBox(height: screenHeight * 0.03),
 
                 // Terms text
                 Text(
                   "By signing in, you agree to our Terms of Service and\nPrivacy Policy",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: isTablet ? 14 : 12,
                     color: isDark
                         ? const Color(0xFF64748B)
                         : const Color.fromARGB(255, 77, 83, 92),
                     height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 40),
+                SizedBox(height: screenHeight * 0.05),
                       ],
                     ),
                   ),

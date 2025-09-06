@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:todo_assignment/core/services/todo_service.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
 import 'package:todo_assignment/core/widgets/theme_toggle_button.dart';
+import 'package:todo_assignment/screens/todos/todo_form_screen.dart';
+import '../../core/models/todo_model.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,101 +18,220 @@ class _HomePageState extends State<HomePage> {
   String userName = "User";
   String userEmail = "";
   String? userPhotoUrl;
-  
-  final List<Task> pendingTasks = [
-    Task(
-      title: "Complete project proposal",
-      dueIn: "1 hours",
-      status: "Due Soon",
-      priority: TaskPriority.high,
-    ),
-    Task(
-      title: "Review team feedback",
-      dueIn: "23 hours",
-      status: "Due Soon",
-      priority: TaskPriority.medium,
-    ),
-  ];
 
-  final List<Task> completedTasks = [
-    Task(
-      title: "Update documentation",
-      status: "Done",
-      priority: TaskPriority.low,
-      isCompleted: true,
-    ),
-  ];
+  final TodoService _todoService = TodoService();
+
+  List<TodoModel> pendingTasks = [];
+  List<TodoModel> completedTasks = [];
+  Map<String, int> stats = {'total': 0, 'pending': 0, 'completed': 0, 'overdue': 0};
+  bool isLoading = true;
+
+  RealtimeChannel? _subscription;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _fetchTodos();
+    _subscribeToTodos();
+  }
+
+  @override
+  void dispose() {
+    _subscription?.unsubscribe();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       setState(() {
-        userName = user.userMetadata?['full_name'] ?? 
-                 user.userMetadata?['name'] ?? 
-                 user.email?.split('@')[0] ?? 
-                 "User";
+        userName = user.userMetadata?['full_name'] ??
+            user.userMetadata?['name'] ??
+            user.email?.split('@')[0] ??
+            "User";
         userEmail = user.email ?? "";
-        userPhotoUrl = user.userMetadata?['avatar_url'] ?? 
-                      user.userMetadata?['picture'];
+        userPhotoUrl = user.userMetadata?['avatar_url'] ??
+            user.userMetadata?['picture'];
       });
+    }
+  }
+
+  Future<void> _fetchTodos() async {
+    setState(() => isLoading = true);
+
+    final todos = await _todoService.getTodos();
+    final pending = todos.where((t) => !t.isCompleted).toList();
+    final completed = todos.where((t) => t.isCompleted).toList();
+    final statsData = await _todoService.getTodoStats();
+
+    setState(() {
+      pendingTasks = pending;
+      completedTasks = completed;
+      stats = statsData;
+      isLoading = false;
+    });
+  }
+
+  void _subscribeToTodos() {
+    try {
+      _subscription = _todoService.subscribeTodos((todos) {
+        final pending = todos.where((t) => !t.isCompleted).toList();
+        final completed = todos.where((t) => t.isCompleted).toList();
+        final overdue = todos.where((t) => t.isOverdue).toList();
+
+        setState(() {
+          pendingTasks = pending;
+          completedTasks = completed;
+          stats = {
+            'total': todos.length,
+            'pending': pending.length,
+            'completed': completed.length,
+            'overdue': overdue.length,
+          };
+        });
+      });
+    } catch (e) {
+      debugPrint('Error subscribing to todos: $e');
+    }
+  }
+
+  // Todo action methods
+  Future<void> _toggleTaskCompletion(TodoModel task) async {
+    try {
+      await _todoService.toggleTodoCompletion(task.id);
+      _fetchTodos(); // Refresh the list
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error updating task: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _editTodo(TodoModel task) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TodoFormScreen(
+          existingTodo: task,
+          isEditing: true,
+        ),
+      ),
+    );
+
+    if (result != null) {
+      _fetchTodos(); // Refresh the list
+    }
+  }
+
+  Future<void> _deleteTodo(TodoModel task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Todo'),
+        content: Text('Are you sure you want to delete "${task.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final success = await _todoService.deleteTodo(task.id);
+        if (success) {
+          _fetchTodos(); // Refresh the list
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Todo deleted successfully')),
+          );
+        } else {
+          throw Exception('Failed to delete todo');
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting todo: ${e.toString()}')),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final screenWidth = screenSize.width;
+    final screenHeight = screenSize.height;
+    final isSmallScreen = screenWidth < 400;
+    
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         final isDark = themeProvider.isDark(context);
-        
+
         return Scaffold(
-          backgroundColor: isDark 
-            ? const Color(0xFF1E293B)
-            : const Color(0xFFF8FAFC),
+          backgroundColor:
+              isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
           body: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with profile and theme toggle
-                  _buildHeader(isDark),
-                  const SizedBox(height: 30),
-                  
-                  // Task statistics cards
-                  _buildTaskStats(isDark),
-                  const SizedBox(height: 30),
-                  
-                  // Pending tasks section
-                  _buildPendingTasks(isDark),
-                  const SizedBox(height: 25),
-                  
-                  // Completed tasks section
-                  _buildCompletedTasks(isDark),
-                  
-                  const Spacer(),
-                ],
+              padding: EdgeInsets.symmetric(
+                horizontal: screenWidth * 0.05, // 5% of screen width
+                vertical: screenHeight * 0.02,  // 2% of screen height
               ),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: screenHeight * 0.85,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header with profile and theme toggle
+                            _buildHeader(isDark, screenWidth, isSmallScreen),
+                            SizedBox(height: screenHeight * 0.03),
+
+                            // Task statistics cards
+                            _buildTaskStats(isDark, screenWidth, isSmallScreen),
+                            SizedBox(height: screenHeight * 0.03),
+
+                            // Pending tasks section
+                            _buildPendingTasks(isDark, screenWidth, isSmallScreen),
+                            SizedBox(height: screenHeight * 0.025),
+
+                            // Completed tasks section
+                            _buildCompletedTasks(isDark, screenWidth, isSmallScreen),
+
+                            SizedBox(height: screenHeight * 0.1), // Space for FAB
+                          ],
+                        ),
+                      ),
+                    ),
             ),
           ),
-          floatingActionButton: _buildFloatingActionButton(isDark),
+          floatingActionButton: _buildFloatingActionButton(isDark, isSmallScreen),
         );
       },
     );
   }
 
-  Widget _buildHeader(bool isDark) {
+  Widget _buildHeader(bool isDark, double screenWidth, bool isSmallScreen) {
+    final avatarSize = isSmallScreen ? 40.0 : 50.0;
+    final welcomeFontSize = isSmallScreen ? 14.0 : 16.0;
+    final dateFontSize = isSmallScreen ? 9.0 : 10.0;
+    final iconSize = isSmallScreen ? 20.0 : 24.0;
+    final spacing = isSmallScreen ? 8.0 : 15.0;
+    
     return Row(
       children: [
-        // Profile picture
         Container(
-          width: 50,
-          height: 50,
+          width: avatarSize,
+          height: avatarSize,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isDark ? const Color(0xFF334155) : Colors.grey[300],
@@ -124,12 +246,12 @@ class _HomePageState extends State<HomePage> {
               ? Icon(
                   Icons.person,
                   color: isDark ? Colors.white70 : Colors.grey[600],
-                  size: 25,
+                  size: avatarSize * 0.5,
                 )
               : null,
         ),
-        const SizedBox(width: 15),
-        
+        SizedBox(width: spacing),
+
         // Welcome text
         Expanded(
           child: Column(
@@ -138,37 +260,39 @@ class _HomePageState extends State<HomePage> {
               Text(
                 "Welcome back, $userName!",
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: welcomeFontSize,
                   fontWeight: FontWeight.bold,
                   color: isDark ? Colors.white : const Color(0xFF1E293B),
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
               Text(
                 "Friday, September 5, 2025",
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: dateFontSize,
                   color: isDark ? Colors.white70 : Colors.grey[600],
                 ),
               ),
             ],
           ),
         ),
-        
+
         // Action buttons
         Row(
           children: [
             Icon(
               Icons.notifications_outlined,
               color: isDark ? Colors.white70 : Colors.grey[600],
-              size: 24,
+              size: iconSize,
             ),
-            const SizedBox(width: 12),
-            ThemeToggleButton(size: 24),
-            const SizedBox(width: 12),
+            SizedBox(width: isSmallScreen ? 8 : 12),
+            ThemeToggleButton(size: iconSize),
+            SizedBox(width: isSmallScreen ? 8 : 12),
             Icon(
               Icons.settings_outlined,
               color: isDark ? Colors.white70 : Colors.grey[600],
-              size: 24,
+              size: iconSize,
             ),
           ],
         ),
@@ -176,50 +300,62 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTaskStats(bool isDark) {
+  Widget _buildTaskStats(bool isDark, double screenWidth, bool isSmallScreen) {
+    final cardSpacing = isSmallScreen ? 8.0 : 15.0;
+    
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             "Total",
-            "3",
+            "${stats['total'] ?? 0}",
             Colors.blue,
             isDark,
+            screenWidth,
+            isSmallScreen,
           ),
         ),
-        const SizedBox(width: 15),
+        SizedBox(width: cardSpacing),
         Expanded(
           child: _buildStatCard(
             "Pending",
-            "2",
+            "${stats['pending'] ?? 0}",
             Colors.orange,
             isDark,
+            screenWidth,
+            isSmallScreen,
           ),
         ),
-        const SizedBox(width: 15),
+        SizedBox(width: cardSpacing),
         Expanded(
           child: _buildStatCard(
             "Overdue",
-            "0",
+            "${stats['overdue'] ?? 0}",
             Colors.red,
             isDark,
+            screenWidth,
+            isSmallScreen,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, String count, Color color, bool isDark) {
+  Widget _buildStatCard(String label, String count, Color color, bool isDark, double screenWidth, bool isSmallScreen) {
+    final cardPadding = isSmallScreen ? 12.0 : 20.0;
+    final labelFontSize = isSmallScreen ? 12.0 : 14.0;
+    final countFontSize = isSmallScreen ? 24.0 : 32.0;
+    final circleSize = isSmallScreen ? 10.0 : 13.0;
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF334155) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: isDark 
-              ? Colors.black.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.1),
+            color:
+                isDark ? Colors.black.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -231,28 +367,31 @@ class _HomePageState extends State<HomePage> {
           Row(
             children: [
               Container(
-                width: 13,
-                height: 13,
+                width: circleSize,
+                height: circleSize,
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isDark ? Colors.white70 : Colors.grey[600],
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: labelFontSize,
+                    color: isDark ? Colors.white70 : Colors.grey[600],
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: isSmallScreen ? 6 : 8),
           Text(
             count,
             style: TextStyle(
-              fontSize: 32,
+              fontSize: countFontSize,
               fontWeight: FontWeight.bold,
               color: isDark ? Colors.white : const Color(0xFF1E293B),
             ),
@@ -262,273 +401,366 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildPendingTasks(bool isDark) {
+  Widget _buildPendingTasks(bool isDark, double screenWidth, bool isSmallScreen) {
+    final titleFontSize = isSmallScreen ? 18.0 : 20.0;
+    final badgeFontSize = isSmallScreen ? 11.0 : 12.0;
+    final spacing = isSmallScreen ? 12.0 : 15.0;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text(
-              "Pending Tasks",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : const Color(0xFF1E293B),
+            Flexible(
+              child: Text(
+                "Pending Tasks",
+                style: TextStyle(
+                  fontSize: titleFontSize,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 6 : 8, 
+                vertical: isSmallScreen ? 3 : 4,
+              ),
               decoration: BoxDecoration(
-                color: Color(0xFFfff7ed),
+                color: const Color(0xFFfff7ed),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.orange),
               ),
               child: Text(
                 "${pendingTasks.length}",
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.orange,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: badgeFontSize,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 15),
-        ...pendingTasks.map((task) => _buildTaskCard(task, isDark)),
+        SizedBox(height: spacing),
+        if (pendingTasks.isEmpty)
+          Text(
+            "No pending tasks", 
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: isSmallScreen ? 14 : 16,
+            ),
+          )
+        else
+          ...pendingTasks.map((task) => _buildTaskCard(task, isDark, screenWidth, isSmallScreen)),
       ],
     );
   }
 
-  Widget _buildCompletedTasks(bool isDark) {
+  Widget _buildCompletedTasks(bool isDark, double screenWidth, bool isSmallScreen) {
+    final titleFontSize = isSmallScreen ? 18.0 : 20.0;
+    final badgeFontSize = isSmallScreen ? 11.0 : 13.0;
+    final spacing = isSmallScreen ? 12.0 : 15.0;
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text(
-              "Completed",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : const Color(0xFF1E293B),
+            Flexible(
+              child: Text(
+                "Completed",
+                style: TextStyle(
+                  fontSize: titleFontSize,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1E293B),
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmallScreen ? 6 : 8, 
+                vertical: isSmallScreen ? 3 : 4,
+              ),
               decoration: BoxDecoration(
-                color: Color(0xFFF0FDF4),
+                color: const Color(0xFFF0FDF4),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.green),
               ),
               child: Text(
                 "${completedTasks.length}",
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.green,
                   fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                  fontSize: badgeFontSize,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 15),
-        ...completedTasks.map((task) => _buildTaskCard(task, isDark)),
+        SizedBox(height: spacing),
+        if (completedTasks.isEmpty)
+          Text(
+            "No completed tasks", 
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: isSmallScreen ? 14 : 16,
+            ),
+          )
+        else
+          ...completedTasks.map((task) => _buildTaskCard(task, isDark, screenWidth, isSmallScreen)),
       ],
     );
   }
 
-  Widget _buildTaskCard(Task task, bool isDark) {
+  Widget _buildTaskCard(TodoModel task, bool isDark, double screenWidth, bool isSmallScreen) {
     final bool isCompleted = task.isCompleted;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isCompleted 
-          ? (Color(0xFFF0FDF4))
-          : (Color(0xFFfff7ed)),
-        borderRadius: BorderRadius.circular(16),
-        border: isCompleted 
-          ? Border.all(color: Colors.green.withOpacity(0.3))
-          : null,
-        boxShadow: [
-          BoxShadow(
-            color: isDark 
-              ? Colors.black.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color:  Colors.blueGrey ,
-                    decoration: isCompleted ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-                if (!isCompleted && task.dueIn != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: Colors.orange,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "Due in ${task.dueIn}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          task.status,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (isCompleted) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 16,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "Completed",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.green,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          "Done",
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              Icon(
-                isCompleted ? Icons.check_circle : Icons.check_circle_outline,
-                color: isCompleted ? Colors.green :  Colors.orange ,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.edit_outlined,
-                color: Colors.blueGrey,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.delete_outline,
-                color: Colors.red.withOpacity(0.7),
-                size: 20,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+    final cardPadding = isSmallScreen ? 12.0 : 16.0;
+    final titleFontSize = isSmallScreen ? 14.0 : 16.0;
+    final descriptionFontSize = isSmallScreen ? 12.0 : 14.0;
+    final metaFontSize = isSmallScreen ? 10.0 : 12.0;
+    final badgeFontSize = isSmallScreen ? 9.0 : 10.0;
+    final iconSize = isSmallScreen ? 18.0 : 20.0;
+    final checkboxSize = isSmallScreen ? 20.0 : 24.0;
+    final cardMargin = isSmallScreen ? 8.0 : 12.0;
 
-  Widget _buildFloatingActionButton(bool isDark) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF00D4D4),
-            Color(0xFF00B4D8),
-            Color(0xFF0EA5E9),
+    return GestureDetector(
+      onTap: () => _editTodo(task),
+      child: Container(
+        margin: EdgeInsets.only(bottom: cardMargin),
+        padding: EdgeInsets.all(cardPadding),
+        decoration: BoxDecoration(
+          color: isDark 
+            ? (isCompleted ? const Color(0xFF334155) : const Color(0xFF475569))
+            : (isCompleted ? const Color(0xFFF0FDF4) : const Color(0xFFfff7ed)),
+          borderRadius: BorderRadius.circular(16),
+          border: isCompleted 
+            ? Border.all(color: Colors.green.withOpacity(0.3)) 
+            : null,
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
           ],
         ),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00B4D8).withOpacity(0.4),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w600,
+                      color: isDark 
+                        ? (isCompleted ? Colors.white60 : Colors.white)
+                        : Colors.blueGrey,
+                      decoration: isCompleted ? TextDecoration.lineThrough : null,
+                    ),
+                    maxLines: isSmallScreen ? 2 : 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (task.description != null && task.description!.isNotEmpty) ...[
+                    SizedBox(height: isSmallScreen ? 3 : 4),
+                    Text(
+                      task.description!,
+                      style: TextStyle(
+                        fontSize: descriptionFontSize,
+                        color: isDark 
+                          ? (isCompleted ? Colors.white38 : Colors.white70)
+                          : Colors.grey[600],
+                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                      ),
+                      maxLines: isSmallScreen ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (!isCompleted && task.dueDate != null) ...[
+                    SizedBox(height: isSmallScreen ? 6 : 8),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.access_time, 
+                          size: isSmallScreen ? 14 : 16, 
+                          color: task.isOverdue 
+                            ? Colors.red 
+                            : (task.isDueSoon ? Colors.orange : Colors.blue),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          task.isOverdue 
+                            ? "Overdue" 
+                            : "Due in ${task.timeUntilDue}",
+                          style: TextStyle(
+                            fontSize: metaFontSize,
+                            color: task.isOverdue 
+                              ? Colors.red 
+                              : (task.isDueSoon ? Colors.orange : Colors.blue),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 6 : 8, 
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (task.isOverdue 
+                              ? Colors.red 
+                              : (task.isDueSoon ? Colors.orange : Colors.blue)
+                            ).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            task.isOverdue 
+                              ? "Overdue" 
+                              : (task.isDueSoon ? "Due Soon" : "Upcoming"),
+                            style: TextStyle(
+                              fontSize: badgeFontSize,
+                              color: task.isOverdue 
+                                ? Colors.red 
+                                : (task.isDueSoon ? Colors.orange : Colors.blue),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (isCompleted) ...[
+                    SizedBox(height: isSmallScreen ? 6 : 8),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle, size: isSmallScreen ? 14 : 16, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Text(
+                          "Completed",
+                          style: TextStyle(
+                            fontSize: metaFontSize,
+                            color: Colors.green,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isSmallScreen ? 6 : 8, 
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            "Done",
+                            style: TextStyle(
+                              fontSize: badgeFontSize,
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            SizedBox(width: isSmallScreen ? 8 : 12),
+            Column(
+              children: [
+                GestureDetector(
+                  onTap: () => _toggleTaskCompletion(task),
+                  child: Icon(
+                    isCompleted ? Icons.check_circle : Icons.check_circle_outline,
+                    color: isCompleted ? Colors.green : Colors.orange,
+                    size: checkboxSize,
+                  ),
+                ),
+                SizedBox(height: isSmallScreen ? 8 : 12),
+                GestureDetector(
+                  onTap: () => _editTodo(task),
+                  child: Icon(
+                    Icons.edit_outlined, 
+                    color: isDark ? Colors.white70 : Colors.blueGrey, 
+                    size: iconSize,
+                  ),
+                ),
+                SizedBox(height: isSmallScreen ? 8 : 12),
+                GestureDetector(
+                  onTap: () => _deleteTodo(task),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: Colors.red.withOpacity(0.7), 
+                    size: iconSize,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-      child: const Icon(
-        Icons.add,
-        color: Colors.white,
-        size: 28,
+    );
+  }
+
+  Widget _buildFloatingActionButton(bool isDark, bool isSmallScreen) {
+    final fabSize = isSmallScreen ? 48.0 : 56.0;
+    final iconSize = isSmallScreen ? 24.0 : 28.0;
+    
+    return FloatingActionButton(
+      onPressed: () async {
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const TodoFormScreen(isEditing: false),
+          ),
+        );
+        
+        if (result != null) {
+          // Refresh the todos list
+          _fetchTodos();
+        }
+      },
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        width: fabSize,
+        height: fabSize,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF00D4D4),
+              Color(0xFF00B4D8),
+              Color(0xFF0EA5E9),
+            ],
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF00B4D8).withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Icon(
+          Icons.add,
+          color: Colors.white,
+          size: iconSize,
+        ),
       ),
     );
   }
 }
-
-// Task model
-class Task {
-  final String title;
-  final String? dueIn;
-  final String status;
-  final TaskPriority priority;
-  final bool isCompleted;
-
-  Task({
-    required this.title,
-    this.dueIn,
-    required this.status,
-    required this.priority,
-    this.isCompleted = false,
-  });
-}
-
-enum TaskPriority { high, medium, low }

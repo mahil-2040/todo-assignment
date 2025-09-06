@@ -42,7 +42,7 @@ class MyApp extends StatelessWidget {
               theme: _lightTheme,
               darkTheme: _darkTheme,
               themeMode: themeProvider.themeMode,
-              home: HomePage(),
+              home: AuthGate(),
             ),
           );
         },
