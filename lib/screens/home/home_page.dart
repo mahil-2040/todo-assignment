@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:todo_assignment/core/services/fcm_servisec.dart';
 import 'package:todo_assignment/core/services/todo_service.dart';
+import 'package:todo_assignment/core/services/notification_sender_service.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
 import 'package:todo_assignment/core/widgets/theme_toggle_button.dart';
 import 'package:todo_assignment/screens/todos/todo_form_screen.dart';
@@ -30,8 +31,12 @@ class _HomePageState extends State<HomePage> {
   RealtimeChannel? _subscription;
 
   @override
-  void initState()async {
+  void initState() {
     super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
     await FcmService().init();
     _loadUserData();
     _fetchTodos();
@@ -207,6 +212,83 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _testNotifications() async {
+    try {
+      // Show options for different tests
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Test Notifications'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('Check Pending Notifications'),
+                subtitle: const Text('Check for existing pending notifications'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await NotificationSenderService().checkNowForTesting();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Checked for pending notifications. Check console for details.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                title: const Text('Create Test Notification'),
+                subtitle: const Text('Create a notification that triggers immediately'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await NotificationSenderService().createTestNotification();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Test notification created. Check console for details.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                title: const Text('Create Future Test'),
+                subtitle: const Text('Create a notification that triggers in 10 seconds'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await NotificationSenderService().createTestTodoNotification();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Future test notification created. Should trigger in 10 seconds.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error testing notifications: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
@@ -326,10 +408,13 @@ class _HomePageState extends State<HomePage> {
         // Action buttons
         Row(
           children: [
-            Icon(
-              Icons.notifications_outlined,
-              color: isDark ? Colors.white70 : Colors.grey[600],
-              size: iconSize,
+            GestureDetector(
+              onTap: _testNotifications,
+              child: Icon(
+                Icons.notifications_active,
+                color: isDark ? Colors.white70 : Colors.grey[600],
+                size: iconSize,
+              ),
             ),
             SizedBox(width: isSmallScreen ? 8 : 12),
             ThemeToggleButton(size: iconSize),

@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/todo_model.dart';
+import 'notification_service.dart';
 
 class TodoService {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final NotificationService _notificationService = NotificationService();
 
   // Get current user ID
   String? get currentUserId => _supabase.auth.currentUser?.id;
@@ -37,7 +39,14 @@ class TodoService {
           .select()
           .single();
 
-      return TodoModel.fromJson(response);
+      final createdTodo = TodoModel.fromJson(response);
+      
+      // Schedule notification if todo has a due date
+      if (createdTodo.dueDate != null) {
+        await _notificationService.scheduleNotificationForTodo(createdTodo);
+      }
+
+      return createdTodo;
     } catch (e) {
       print('Error creating todo: $e');
       return null;
@@ -182,7 +191,21 @@ class TodoService {
           .select()
           .single();
 
-      return TodoModel.fromJson(response);
+      final updatedTodo = TodoModel.fromJson(response);
+      
+      // Handle notification scheduling based on updates
+      if (isCompleted == true) {
+        // Todo completed, mark notification as completed
+        await _notificationService.markTodoCompleted(todoId);
+      } else if (dueDate != null) {
+        // Due date updated, reschedule notification
+        await _notificationService.scheduleNotificationForTodo(updatedTodo);
+      } else if (title != null) {
+        // Title updated, update notification if it exists
+        await _notificationService.scheduleNotificationForTodo(updatedTodo);
+      }
+
+      return updatedTodo;
     } catch (e) {
       print('Error updating todo: $e');
       return null;
@@ -212,7 +235,20 @@ class TodoService {
           .select()
           .single();
 
-      return TodoModel.fromJson(response);
+      final updatedTodo = TodoModel.fromJson(response);
+      
+      // Handle notification based on completion status
+      if (newCompletionStatus) {
+        // Todo completed, mark notification as completed
+        await _notificationService.markTodoCompleted(todoId);
+      } else {
+        // Todo uncompleted, reschedule notification if it has a due date
+        if (updatedTodo.dueDate != null) {
+          await _notificationService.scheduleNotificationForTodo(updatedTodo);
+        }
+      }
+
+      return updatedTodo;
     } catch (e) {
       print('Error toggling todo completion: $e');
       return null;
@@ -223,6 +259,9 @@ class TodoService {
   Future<bool> deleteTodo(String todoId) async {
     try {
       if (currentUserId == null) throw Exception('User not authenticated');
+
+      // Cancel any scheduled notifications for this todo
+      await _notificationService.cancelNotificationForTodo(todoId);
 
       await _supabase
           .from('todos')

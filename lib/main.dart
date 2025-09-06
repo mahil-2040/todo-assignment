@@ -1,19 +1,41 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:todo_assignment/firebase_options.dart';
 import 'package:todo_assignment/screens/auth/auth_gate.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
+import 'package:todo_assignment/core/services/fcm_servisec.dart';
+import 'package:todo_assignment/core/services/notification_sender_service.dart';
+import 'package:todo_assignment/core/services/local_notification_service.dart';
+import 'package:timezone/data/latest.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: ".env");
+  // Initialize timezone data
+  tz.initializeTimeZones();
 
+  await dotenv.load(fileName: ".env");
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+
+  // Initialize FCM service
+  await FcmService().init();
+  
+  // Initialize local notifications
+  await LocalNotificationService().init();
+  
+  // Start notification scheduler (for demo purposes)
+  // In production, this would run on a server
+  NotificationSenderService().startNotificationScheduler();
   
   runApp(const MyApp());
 }

@@ -60,24 +60,53 @@ class FcmService {
 
   Future<void> _saveToken(String token) async {
     final user = _supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (kDebugMode) {
+        print('Cannot save FCM token: User not authenticated');
+      }
+      return;
+    }
 
     final platform = Platform.isAndroid ? 'android' :
                      Platform.isIOS ? 'ios' : 'other';
 
-    // Upsert by token (unique)
-    final res = await _supabase
-        .from('device_tokens')
-        .upsert({
-          'user_id': user.id,
-          'token': token,
-          'platform': platform,
-        }, onConflict: 'token')
-        .select()
-        .maybeSingle();
+    try {
+      // First try to insert, if conflict then update
+      final res = await _supabase
+          .from('device_tokens')
+          .upsert({
+            'user_id': user.id,
+            'token': token,
+            'platform': platform,
+            'updated_at': DateTime.now().toIso8601String(),
+          }, onConflict: 'token')
+          .select()
+          .maybeSingle();
 
-    if (kDebugMode) {
-      print('Saved device token: $res');
+      if (kDebugMode) {
+        print('Saved device token: $res');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error saving device token: $e');
+      }
+      // Retry with a simple insert approach
+      try {
+        await _supabase
+            .from('device_tokens')
+            .insert({
+              'user_id': user.id,
+              'token': token,
+              'platform': platform,
+            });
+        if (kDebugMode) {
+          print('Device token saved successfully on retry');
+        }
+      } catch (retryError) {
+        if (kDebugMode) {
+          print('Failed to save device token on retry: $retryError');
+        }
+      }
     }
   }
 
