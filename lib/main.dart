@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:todo_assignment/screens/auth/auth_gate.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
+import 'package:todo_assignment/screens/home/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,7 +42,7 @@ class MyApp extends StatelessWidget {
               theme: _lightTheme,
               darkTheme: _darkTheme,
               themeMode: themeProvider.themeMode,
-              home: const AuthGate(),
+              home: HomePage(),
             ),
           );
         },

@@ -14,7 +14,6 @@ class ThemeProvider extends ChangeNotifier {
     _loadTheme();
   }
 
-  // Load saved theme from SharedPreferences
   Future<void> _loadTheme() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -22,7 +21,6 @@ class ThemeProvider extends ChangeNotifier {
       _themeMode = ThemeMode.values[themeModeIndex];
       notifyListeners();
     } catch (e) {
-      // If there's an error loading, default to system theme
       _themeMode = ThemeMode.system;
     }
   }
