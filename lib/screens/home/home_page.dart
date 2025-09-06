@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:todo_assignment/core/services/fcm_servisec.dart';
 import 'package:todo_assignment/core/services/todo_service.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
 import 'package:todo_assignment/core/widgets/theme_toggle_button.dart';
@@ -29,8 +30,9 @@ class _HomePageState extends State<HomePage> {
   RealtimeChannel? _subscription;
 
   @override
-  void initState() {
+  void initState()async {
     super.initState();
+    await FcmService().init();
     _loadUserData();
     _fetchTodos();
     _subscribeToTodos();
@@ -157,6 +159,49 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting todo: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showLogoutDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _logout();
+    }
+  }
+
+  Future<void> _logout() async {
+    try {
+      await _todoService.signOut();
+      // The AuthGate will automatically handle navigation back to login
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logged out successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error logging out: ${e.toString()}')),
         );
       }
     }
@@ -289,10 +334,13 @@ class _HomePageState extends State<HomePage> {
             SizedBox(width: isSmallScreen ? 8 : 12),
             ThemeToggleButton(size: iconSize),
             SizedBox(width: isSmallScreen ? 8 : 12),
-            Icon(
-              Icons.settings_outlined,
-              color: isDark ? Colors.white70 : Colors.grey[600],
-              size: iconSize,
+            GestureDetector(
+              onTap: _showLogoutDialog,
+              child: Icon(
+                Icons.logout,
+                color: isDark ? Colors.white70 : Colors.grey[600],
+                size: iconSize,
+              ),
             ),
           ],
         ),
@@ -536,11 +584,11 @@ class _HomePageState extends State<HomePage> {
         decoration: BoxDecoration(
           color: isDark 
             ? (isCompleted ? const Color(0xFF334155) : const Color(0xFF475569))
-            : (isCompleted ? const Color(0xFFF0FDF4) : const Color(0xFFfff7ed)),
+            : (isCompleted ? const Color(0xFFF0FDF4) : (task.isOverdue) ? const Color(0xfffef2f2) : const Color(0xFFfff7ed)),
           borderRadius: BorderRadius.circular(16),
           border: isCompleted 
-            ? Border.all(color: Colors.green.withOpacity(0.3)) 
-            : null,
+            ? Border.all(color: Colors.green.withOpacity(0.3)) : (task.isOverdue) ? Border.all(color: Colors.red.withOpacity(0.3))
+            : Border.all(color: Colors.orange.withOpacity(0.3)),
           boxShadow: [
             BoxShadow(
               color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey.withOpacity(0.1),

@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="todo_assignment"
         android:name="${applicationName}"
@@ -22,7 +25,9 @@
                     <category android:name="android.intent.category.BROWSABLE"/>
                     <data android:scheme="todo" android:host="login-callback"/>
                 </intent-filter>
-
+            <meta-data
+                android:name="com.google.firebase.messaging.default_notification_icon"
+                android:resource="@mipmap/ic_launcher" />
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"

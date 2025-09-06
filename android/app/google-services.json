@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "541399428960",
+    "project_id": "kaushal-8199f",
+    "storage_bucket": "kaushal-8199f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:541399428960:android:15e007bd9e52eff4e67805",
+        "android_client_info": {
+          "package_name": "com.example.todo_assignment"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmaA13GYGZu5dK9hNc6ke9VTXGR4uc_4c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

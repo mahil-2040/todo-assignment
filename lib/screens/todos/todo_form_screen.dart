@@ -87,6 +87,10 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
     if (date != null) {
       setState(() {
         _selectedDate = date;
+        // If time is already selected, validate the combined datetime
+        if (_selectedTime != null) {
+          _validateDateTime();
+        }
       });
     }
   }
@@ -113,6 +117,10 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
     if (time != null) {
       setState(() {
         _selectedTime = time;
+        // If date is already selected, validate the combined datetime
+        if (_selectedDate != null) {
+          _validateDateTime();
+        }
       });
     }
   }
@@ -140,8 +148,92 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
     return '$hour:$minute';
   }
 
+  void _validateDateTime() {
+    if (_combinedDateTime != null) {
+      final now = DateTime.now();
+      if (_combinedDateTime!.isBefore(now)) {
+        // Show warning if the selected datetime is in the past
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Selected date and time cannot be in the past'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  bool _isDateTimeValid() {
+    if (_combinedDateTime == null) return true; // No datetime selected is valid
+    return _combinedDateTime!.isAfter(DateTime.now());
+  }
+
   Future<void> _saveTodo() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Check if both date and time are selected
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a due date'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a due time'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Check if the selected datetime is not in the past
+    if (!_isDateTimeValid()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Selected date and time cannot be in the past'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 

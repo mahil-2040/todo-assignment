@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:todo_assignment/screens/auth/auth_gate.dart';
 import 'package:todo_assignment/core/theme/theme_provider.dart';
-import 'package:todo_assignment/screens/home/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

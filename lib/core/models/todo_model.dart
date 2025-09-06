@@ -32,9 +32,11 @@ class TodoModel {
         (e) => e.name == json['priority'],
         orElse: () => TaskPriority.medium,
       ),
-      dueDate: json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      dueDate: json['due_date'] != null
+          ? DateTime.parse(json['due_date']).toLocal()
+          : null,
+      createdAt: DateTime.parse(json['created_at']).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
   }
 
@@ -46,9 +48,9 @@ class TodoModel {
       'description': description,
       'is_completed': isCompleted,
       'priority': priority.name,
-      'due_date': dueDate?.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'due_date': dueDate?.toUtc().toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
     };
   }
 
@@ -59,7 +61,7 @@ class TodoModel {
       'description': description,
       'is_completed': isCompleted,
       'priority': priority.name,
-      'due_date': dueDate?.toIso8601String(),
+      'due_date': dueDate?.toUtc().toIso8601String(),
     };
   }
 
@@ -69,7 +71,7 @@ class TodoModel {
       'description': description,
       'is_completed': isCompleted,
       'priority': priority.name,
-      'due_date': dueDate?.toIso8601String(),
+      'due_date': dueDate?.toUtc().toIso8601String(),
     };
   }
 
@@ -101,6 +103,7 @@ class TodoModel {
   String get timeUntilDue {
     if (dueDate == null) return '';
     
+    // Work entirely in local time for accurate display
     final now = DateTime.now();
     final difference = dueDate!.difference(now);
     
@@ -153,8 +156,8 @@ class UserProfile {
       email: json['email'],
       fullName: json['full_name'],
       avatarUrl: json['avatar_url'],
-      createdAt: DateTime.parse(json['created_at']),
-      updatedAt: DateTime.parse(json['updated_at']),
+      createdAt: DateTime.parse(json['created_at']).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
   }
 
@@ -164,8 +167,8 @@ class UserProfile {
       'email': email,
       'full_name': fullName,
       'avatar_url': avatarUrl,
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
+      'created_at': createdAt.toUtc().toIso8601String(),
+      'updated_at': updatedAt.toUtc().toIso8601String(),
     };
   }
 }
