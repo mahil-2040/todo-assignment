@@ -13,8 +13,6 @@ import 'package:timezone/data/latest.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize timezone data
   tz.initializeTimeZones();
 
   await dotenv.load(fileName: ".env");
@@ -27,14 +25,8 @@ void main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // Initialize FCM service
   await FcmService().init();
-  
-  // Initialize local notifications
   await LocalNotificationService().init();
-  
-  // Start notification scheduler (for demo purposes)
-  // In production, this would run on a server
   NotificationSenderService().startNotificationScheduler();
   
   runApp(const MyApp());

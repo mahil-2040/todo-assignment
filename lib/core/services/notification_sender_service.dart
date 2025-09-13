@@ -4,9 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'notification_service.dart';
 import 'local_notification_service.dart';
 
-/// This service handles the actual sending of push notifications
-/// In a production app, this would typically run on a server/cloud function
-/// For demo purposes, this can be called periodically from the app
 class NotificationSenderService {
   static final NotificationSenderService _instance =
       NotificationSenderService._internal();
@@ -19,7 +16,6 @@ class NotificationSenderService {
 
   Timer? _notificationTimer;
 
-  /// Start periodic checking for notifications to send
   void startNotificationScheduler(
       {Duration interval = const Duration(seconds: 30)}) {
     _notificationTimer?.cancel();
@@ -125,7 +121,6 @@ class NotificationSenderService {
   Future<bool> _sendFcmNotification(
       String token, String title, String body) async {
     try {
-      // Use local notifications as a fallback for demo purposes
       await _localNotificationService.showNotification(
         id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
         title: title,
@@ -146,7 +141,6 @@ class NotificationSenderService {
     return false;
   }
 
-  /// Manually trigger notification check (useful for testing)
   Future<void> checkNowForTesting() async {
     if (kDebugMode) {
       print('Manually checking for notifications...');

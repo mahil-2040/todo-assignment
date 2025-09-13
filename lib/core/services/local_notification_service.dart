@@ -120,7 +120,6 @@ class LocalNotificationService {
       id,
       title,
       body,
-      // Convert to TZDateTime (required for scheduling)
       _convertToTZDateTime(scheduledDate),
       notificationDetails,
       payload: payload,
@@ -147,10 +146,7 @@ class LocalNotificationService {
     }
   }
 
-  // Helper method to convert DateTime to TZDateTime
   tz.TZDateTime _convertToTZDateTime(DateTime dateTime) {
-    // For simplicity, we'll use the system timezone
-    // In a real app, you might want to use a specific timezone
     return tz.TZDateTime.from(dateTime, tz.local);
   }
 }

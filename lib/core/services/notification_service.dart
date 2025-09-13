@@ -9,7 +9,6 @@ class NotificationService {
 
   final _supabase = Supabase.instance.client;
 
-  /// Schedule a notification for a todo 1 hour before its deadline
   Future<void> scheduleNotificationForTodo(TodoModel todo) async {
     try {
       if (todo.dueDate == null) {
@@ -27,7 +26,6 @@ class NotificationService {
         return;
       }
 
-      // Calculate notification time (1 hour before due date)
       final notificationTime = todo.dueDate!.subtract(const Duration(hours: 1));
       
       if (kDebugMode) {
@@ -36,7 +34,6 @@ class NotificationService {
         print('Current time: ${DateTime.now().toUtc().toIso8601String()}');
       }
       
-      // Don't schedule if notification time is in the past
       if (notificationTime.isBefore(DateTime.now())) {
         if (kDebugMode) {
           print('Notification time is in the past for todo: ${todo.title}');
@@ -44,7 +41,6 @@ class NotificationService {
         return;
       }
 
-      // Create notification record
       final notificationData = {
         'todo_id': todo.id,
         'user_id': user.id,
@@ -59,7 +55,6 @@ class NotificationService {
         print('Creating notification with data: $notificationData');
       }
 
-      // Check if notification already exists for this todo
       final existingNotification = await _supabase
           .from('scheduled_notifications')
           .select()
@@ -68,7 +63,6 @@ class NotificationService {
           .maybeSingle();
 
       if (existingNotification != null) {
-        // Update existing notification
         await _supabase
             .from('scheduled_notifications')
             .update(notificationData)
@@ -78,7 +72,6 @@ class NotificationService {
           print('Updated existing notification for todo: ${todo.title}');
         }
       } else {
-        // Insert new notification
         final result = await _supabase
             .from('scheduled_notifications')
             .insert(notificationData)
@@ -100,7 +93,6 @@ class NotificationService {
     }
   }
 
-  /// Cancel scheduled notification for a todo
   Future<void> cancelNotificationForTodo(String todoId) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -122,16 +114,14 @@ class NotificationService {
     }
   }
 
-  /// Update notification when todo is completed
   Future<void> markTodoCompleted(String todoId) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      // Mark notification as cancelled since todo is completed
       await _supabase
           .from('scheduled_notifications')
-          .update({'is_sent': true}) // We mark as sent to prevent sending
+          .update({'is_sent': true})
           .eq('todo_id', todoId)
           .eq('user_id', user.id);
 
@@ -145,7 +135,6 @@ class NotificationService {
     }
   }
 
-  /// Get pending notifications that need to be sent
   Future<List<Map<String, dynamic>>> getPendingNotifications() async {
     try {
       final now = DateTime.now().toUtc();
@@ -154,7 +143,6 @@ class NotificationService {
         print('Looking for notifications scheduled before: ${now.toIso8601String()}');
       }
       
-      // First, let's check if we have any scheduled notifications at all
       final allNotifications = await _supabase
           .from('scheduled_notifications')
           .select('*')
@@ -175,7 +163,7 @@ class NotificationService {
           ''')
           .eq('is_sent', false)
           .lte('scheduled_for', now.toIso8601String())
-          .eq('todos.is_completed', false); // Only for incomplete todos
+          .eq('todos.is_completed', false);
 
       if (kDebugMode) {
         print('Pending notifications found: ${notifications.length}');

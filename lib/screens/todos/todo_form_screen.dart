@@ -44,14 +44,15 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
     _selectedPriority = todo.priority;
     
     if (todo.dueDate != null) {
+      final localDueDate = todo.dueDate!.toLocal();
       _selectedDate = DateTime(
-        todo.dueDate!.year,
-        todo.dueDate!.month,
-        todo.dueDate!.day,
+        localDueDate.year,
+        localDueDate.month,
+        localDueDate.day,
       );
       _selectedTime = TimeOfDay(
-        hour: todo.dueDate!.hour,
-        minute: todo.dueDate!.minute,
+        hour: localDueDate.hour,
+        minute: localDueDate.minute,
       );
     }
   }
@@ -87,7 +88,6 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
     if (date != null) {
       setState(() {
         _selectedDate = date;
-        // If time is already selected, validate the combined datetime
         if (_selectedTime != null) {
           _validateDateTime();
         }
@@ -173,7 +173,7 @@ class _TodoFormScreenState extends State<TodoFormScreen> {
 
   bool _isDateTimeValid() {
     if (_combinedDateTime == null) return true; // No datetime selected is valid
-    return _combinedDateTime!.isAfter(DateTime.now());
+    return _combinedDateTime!.isAfter(DateTime.now().toUtc().toLocal());
   }
 
   Future<void> _saveTodo() async {

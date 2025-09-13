@@ -55,7 +55,6 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         userName = user.userMetadata?['full_name'] ??
             user.userMetadata?['name'] ??
-            user.email?.split('@')[0] ??
             "User";
         userEmail = user.email ?? "";
         userPhotoUrl = user.userMetadata?['avatar_url'] ??
@@ -154,7 +153,7 @@ class _HomePageState extends State<HomePage> {
       try {
         final success = await _todoService.deleteTodo(task.id);
         if (success) {
-          _fetchTodos(); // Refresh the list
+          _fetchTodos();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Todo deleted successfully')),
           );
@@ -306,8 +305,8 @@ class _HomePageState extends State<HomePage> {
           body: SafeArea(
             child: Padding(
               padding: EdgeInsets.symmetric(
-                horizontal: screenWidth * 0.05, // 5% of screen width
-                vertical: screenHeight * 0.02,  // 2% of screen height
+                horizontal: screenWidth * 0.05,
+                vertical: screenHeight * 0.02, 
               ),
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -319,7 +318,6 @@ class _HomePageState extends State<HomePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header with profile and theme toggle
                             _buildHeader(isDark, screenWidth, isSmallScreen),
                             SizedBox(height: screenHeight * 0.03),
 

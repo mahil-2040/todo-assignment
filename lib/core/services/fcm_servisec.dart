@@ -4,10 +4,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-/// Top-level background handler (MUST be a top-level function)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // You can do lightweight logging here if needed
 }
 
 class FcmService {
@@ -24,26 +22,21 @@ class FcmService {
     if (_initialized) return;
     await Firebase.initializeApp();
 
-    // iOS permission (and Android 13+ runtime)
     await _messaging.requestPermission(
       alert: true, badge: true, sound: true,
       provisional: false,
     );
 
-    // Set background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    // Handle foreground messages (optional UI/snackbar)
     FirebaseMessaging.onMessage.listen((msg) {
       if (kDebugMode) {
         print('FCM foreground: ${msg.notification?.title} - ${msg.notification?.body}');
       }
     });
 
-    // Save current token
     await _ensureTokenSaved();
 
-    // Listen for token refresh
     _messaging.onTokenRefresh.listen((newToken) async {
       await _saveToken(newToken);
     });
@@ -71,7 +64,6 @@ class FcmService {
                      Platform.isIOS ? 'ios' : 'other';
 
     try {
-      // First try to insert, if conflict then update
       final res = await _supabase
           .from('device_tokens')
           .upsert({
@@ -90,7 +82,6 @@ class FcmService {
       if (kDebugMode) {
         print('Error saving device token: $e');
       }
-      // Retry with a simple insert approach
       try {
         await _supabase
             .from('device_tokens')

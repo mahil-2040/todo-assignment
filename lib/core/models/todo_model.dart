@@ -103,7 +103,6 @@ class TodoModel {
   String get timeUntilDue {
     if (dueDate == null) return '';
     
-    // Work entirely in local time for accurate display
     final now = DateTime.now();
     final difference = dueDate!.difference(now);
     
